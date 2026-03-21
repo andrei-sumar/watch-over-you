@@ -1,15 +1,18 @@
-inlets = 2
-outlets = 4; // 0 = buffer, 1 = energy, 2 = RMSSD, 3 = st dev
+inlets = 3; // 0 = tempo, 1 = buffer size, 2 = jitter sensitivity
+outlets = 5; // 0 = buffer, 1 = energy, 2 = jitter, 3 = st dev, 4 = key root note
 
 var bufferSize = 10;
 
 var energyDropPerSecond = 0.1;
 
-var cooldownSeconds = 5;
+var jitterSensitivity = 1;
+
+// var cooldownSeconds = 10;
 
 var state = {
     buffer: [],
-    cooldown: 0
+    cooldown: 0,
+    keyRootNote: 0
 }
 
 var zones = [
@@ -29,7 +32,8 @@ function msg_int(v) {
     }
 
     if (inlet === 2) {
-        
+        jitterSensitivity = v;
+        return;
     }
 
     if (energy === null) {
@@ -50,11 +54,13 @@ function msg_int(v) {
 
         var stdDev = getStdDev();
         outlet(3, stdDev);    
-        
+         
         energy = normalizeEnergy(energy, v, stdDev);
     }
 
-    outlet(1, energy);
+    outlet(1, v);
+
+    outlet(4, state.keyRootNote);
 
     state.cooldown = Math.max(0, state.cooldown - 1);
 }
@@ -71,7 +77,7 @@ function getRmssd() {
     var rmssd = Math.sqrt(sumSq / (n - 1));
 
     var k = 2; // smoothing factor
-    var deadzone = 1;
+    var deadzone = 1 - jitterSensitivity;
     var adj = Math.max(0, rmssd - deadzone);
     return 1 - Math.exp(-adj / k);
 }
@@ -117,9 +123,9 @@ function normalizeEnergy(energy, tempo, stdDev) {
 
     var targetEnergy = energy;
 
-    if (stdDev > 3 && state.cooldown === 0) {
+    if (stdDev > 3/* && state.cooldown === 0*/) {
         targetEnergy += state.buffer[state.buffer.length - 1] - state.buffer[0];
-        state.cooldown = cooldownSeconds;
+        state.cooldown = bufferSize;
     }else{
         targetEnergy -= energyDropPerSecond;
     }
