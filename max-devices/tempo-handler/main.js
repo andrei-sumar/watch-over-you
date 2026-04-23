@@ -1,9 +1,9 @@
 inlets = 3; // 0 = tempo, 1 = buffer size, 2 = jitter sensitivity
 outlets = 5; // 0 = buffer, 1 = energy, 2 = jitter, 3 = st dev, 4 = key root note
 
-var bufferSize = 10;
+var bufferSize = 8;
 
-var energyDropPerSecond = 1;
+var energyDropRate = 1.5;
 
 var jitterSensitivity = 1;
 
@@ -127,8 +127,6 @@ function normalizeEnergy(energy, tempo, stdDev) {
 
     var allowedEnergyRange;
 
-    //tod o: hold energy in the last range once it got there
-
     if (tempoZone === 0) {
         allowedEnergyRange = [zones[0][0], zones[1][1]];
     }else if (tempoZone === zones.length - 1) {
@@ -142,31 +140,30 @@ function normalizeEnergy(energy, tempo, stdDev) {
 
     var h2mean = getMean(Math.round(state.buffer.length/2), state.buffer.length);
     var h1mean = getMean(0, Math.round(state.buffer.length/2));
+    var mean = getMean(0, state.buffer.length);
     var trend = h2mean - h1mean;
     var trendThreshold = 1.5;
     var lagQ = Math.max(1, Math.sqrt(Math.abs(tempo-energy)) / 2);
 
-    if ((stdDev < 1.25) && (Math.abs(trend) < trendThreshold)) { //energy falls when the tempo is stable
-        var revLagQ = 1.35/lagQ;
-        targetEnergy -= (1.25 - stdDev) * revLagQ * energyDropPerSecond;
-        if (targetEnergy < allowedEnergyRange[0]) {
-            targetEnergy = allowedEnergyRange[0];
-        }
-    }else if (stdDev > 1.35 && trend > 0) { // rises and is not stable
-        targetEnergy += (stdDev/3.0) * lagQ * Math.max(0, state.buffer[state.buffer.length - 1] - state.buffer[state.buffer.length - 2]);
-        if (targetEnergy > allowedEnergyRange[1]) {
-            targetEnergy = allowedEnergyRange[1];
-        }
-        if (targetEnergy == 177) {
-            state.topEnergyCooldown = topEnergyCooldownSeconds;
-        }
-    }else if (trend < trendThreshold && energy > tempo + 6) { // falls and lags behind tempo       
-        targetEnergy -= (stdDev/3.0) * lagQ * Math.max(0, state.buffer[state.buffer.length - 2] - state.buffer[state.buffer.length - 1]);
-        if (targetEnergy < allowedEnergyRange[0]) {
-            targetEnergy = allowedEnergyRange[0];
-        }
+    var maxTempo = Math.max.apply(null, state.buffer.slice(0, -1));
+
+
+    if ((h2mean + 3 <= h1mean) || ((h2mean <= h1mean) && (stdDev < 1.25))) { //tempo is definitely falling or around same but with low stdDev
+        targetEnergy -= energyDropRate;
+    }else if (tempo > maxTempo && tempo > energy) {
+        targetEnergy = tempo;
     }
-   
+
+    if (targetEnergy < allowedEnergyRange[0]) {
+        targetEnergy = allowedEnergyRange[0];
+    } else if (targetEnergy > allowedEnergyRange[1]) {
+        targetEnergy = allowedEnergyRange[1];
+    }
+
+    if (targetEnergy > 165) {
+        state.topEnergyCooldown = topEnergyCooldownSeconds;
+        targetEnergy = 177;
+    }   
     
     return targetEnergy;
 }
