@@ -9,12 +9,13 @@ import (
 
 type Config struct {
 	MIDI struct {
-		PortName      string `yaml:"port_name"`
-		Channel       uint8  `yaml:"channel"`
-		TempoChangeCC uint8  `yaml:"tempo_change_cc"`
-		RapidGrowthCC uint8  `yaml:"rapid_growth_cc"`
-		DecreaseCC    uint8  `yaml:"decrease_cc"`
-		MinTempo      uint8  `yaml:"min_tempo_bpm"`
+		PortName         string `yaml:"port_name"`
+		Channel          uint8  `yaml:"channel"`
+		TempoChangeCC    uint8  `yaml:"tempo_change_cc"`
+		RapidGrowthCC    uint8  `yaml:"rapid_growth_cc"`
+		DecreaseCC       uint8  `yaml:"decrease_cc"`
+		MinTempo         uint8  `yaml:"min_tempo_bpm"`
+		StartTransportCC uint8  `yaml:"start_transport_cc"`
 	} `yaml:"midi"`
 	Smoothing struct {
 		WindowWidth          int `yaml:"window_width"`

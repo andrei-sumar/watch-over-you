@@ -35,6 +35,8 @@ func main() {
 	fmt.Printf("Initialized heart rate processor with window width: %d, rapid growth threshold: %d, cooldown: %v\n", windowWidth, rapidGrowthThreshold, rapidGrowthCooldown)
 
 	var lastRapidChangeTime time.Time
+	var transportStartSent bool
+	var previousMeasuredAt int64
 
 	var fetcher HeartRateFetcher
 
@@ -78,11 +80,11 @@ func main() {
 				if err := sendMIDICC(out, config.MIDI.Channel, config.MIDI.RapidGrowthCC, 127); err != nil {
 					fmt.Fprintf(os.Stderr, "Error sending rapid growth MIDI CC: %v\n", err)
 				} else {
-					fmt.Println("Rapid growth detected - MIDI CC sent successfully")
+					//fmt.Println("Rapid growth detected - MIDI CC sent successfully")
 					lastRapidChangeTime = time.Now()
 				}
 			} else {
-				fmt.Printf("Rapid growth detected but cooldown active (%.1fs remaining)\n", (rapidGrowthCooldown - timeSinceLastRapidChange).Seconds())
+				//fmt.Printf("Rapid growth detected but cooldown active (%.1fs remaining)\n", (rapidGrowthCooldown - timeSinceLastRapidChange).Seconds())
 			}
 		} else if processor.HasDecrease() { //todo: definitely refactor
 			timeSinceLastRapidChange := time.Since(lastRapidChangeTime)
@@ -90,11 +92,11 @@ func main() {
 				if err := sendMIDICC(out, config.MIDI.Channel, config.MIDI.DecreaseCC, 127); err != nil {
 					fmt.Fprintf(os.Stderr, "Error sending decrease MIDI CC: %v\n", err)
 				} else {
-					fmt.Println("Decrease detected - MIDI CC sent successfully")
+					//fmt.Println("Decrease detected - MIDI CC sent successfully")
 					lastRapidChangeTime = time.Now()
 				}
 			} else {
-				fmt.Printf("Decrease detected but cooldown active (%.1fs remaining)\n", (rapidGrowthCooldown - timeSinceLastRapidChange).Seconds())
+				//fmt.Printf("Decrease detected but cooldown active (%.1fs remaining)\n", (rapidGrowthCooldown - timeSinceLastRapidChange).Seconds())
 			}
 		}
 
@@ -103,8 +105,34 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error sending MIDI CC: %v\n", err)
 		} else {
 			fmt.Println("MIDI CC sent successfully")
+
+			// Send transport start CC once after first tempo change
+			if !transportStartSent {
+				if err := sendMIDICC(out, config.MIDI.Channel, config.MIDI.StartTransportCC, 127); err != nil {
+					fmt.Fprintf(os.Stderr, "Error sending transport start MIDI CC: %v\n", err)
+				} else {
+					fmt.Println("Transport start MIDI CC sent")
+					transportStartSent = true
+				}
+			}
 		}
 
-		time.Sleep(1 * time.Second)
+		// Calculate sleep duration based on timestamp difference in CSV mode
+		var sleepDuration time.Duration
+		if config.DataSource.Type == "csv" && previousMeasuredAt > 0 {
+			// measuredAt is in milliseconds
+			timeDiffMs := hrResp.MeasuredAt - previousMeasuredAt
+			if timeDiffMs > 0 {
+				sleepDuration = time.Duration(timeDiffMs) * time.Millisecond
+			} else {
+				// If timestamps are not increasing (e.g., looped back to start), use default
+				sleepDuration = 1 * time.Second
+			}
+		} else {
+			sleepDuration = 1 * time.Second
+		}
+		previousMeasuredAt = hrResp.MeasuredAt
+
+		time.Sleep(sleepDuration)
 	}
 }

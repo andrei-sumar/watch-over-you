@@ -4,6 +4,7 @@ midi:
   tempo_change_cc: 20
   rapid_growth_cc: 21
   decrease_cc:     22
+  start_transport_cc: 25
   min_tempo_bpm: 50
 
 smoothing:
